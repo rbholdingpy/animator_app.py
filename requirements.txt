@@ -1,7 +1,6 @@
 streamlit
 openai
 moviepy==1.0.3
-pydub
 numpy<2.0.0
 Pillow==9.5.0
 requests
