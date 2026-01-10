@@ -5,4 +5,3 @@ pydub
 numpy
 Pillow
 requests
-pyaudioop
