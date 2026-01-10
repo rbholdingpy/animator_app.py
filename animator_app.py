@@ -5,6 +5,7 @@ import io
 import requests
 import numpy as np
 from PIL import Image
+# Eliminamos pydub y usamos solo MoviePy
 from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip
 
 # ==========================================
@@ -82,39 +83,43 @@ def generar_sprites(descripcion):
 # 🎞️ MOTOR DE ANIMACIÓN (NUEVO - SIN PYDUB)
 # ==========================================
 
-def procesar_video(audio_path, img_closed, img_open, fps=10):
+def procesar_video(audio_path, img_closed, img_open, fps=8):
     """Anima analizando el volumen directamente con MoviePy"""
     
     # 1. Guardar imágenes temporales
     img_closed.save("frame_closed.png")
     img_open.save("frame_open.png")
     
-    # 2. Cargar Audio
+    # 2. Cargar Audio con MoviePy
     audio_clip = AudioFileClip(audio_path)
     duration = audio_clip.duration
     
     clips = []
-    step = 1.0 / fps # Duración de cada cuadro
+    # Usamos un paso más grande para evitar errores de memoria
+    step = 1.0 / fps 
     
-    # 3. Iterar cuadro por cuadro
-    for t in np.arange(0, duration, step):
-        # Cortar pedacito de audio
-        # Usamos try/except por si llegamos al final exacto del audio
+    # 3. Iterar por el audio para detectar volumen
+    # Convertimos a array una sola vez para velocidad (si es corto)
+    # O iteramos por trozos
+    
+    times = np.arange(0, duration, step)
+    
+    for t in times:
+        # Extraer un pequeño trozo de audio
+        # Nota: to_soundarray devuelve una matriz [samples, channels]
         try:
-            # Analizar un fragmento pequeño
             chunk = audio_clip.subclip(t, t + step).to_soundarray(fps=22050)
-            
-            # Calcular volumen máximo en este fragmento (0.0 a 1.0)
             if chunk.size > 0:
+                # Calculamos el volumen máximo en este trozo
                 volume = np.max(np.abs(chunk))
             else:
                 volume = 0
         except:
             volume = 0
-
+            
         # 4. Decisión: ¿Boca abierta o cerrada?
-        # Umbral ajustable: 0.05 suele funcionar bien para detectar voz
-        threshold = 0.05
+        # Umbral de sensibilidad (ajustable)
+        threshold = 0.01 
         
         if volume > threshold:
             clip = ImageClip("frame_open.png").set_duration(step)
@@ -128,6 +133,7 @@ def procesar_video(audio_path, img_closed, img_open, fps=10):
     video = video.set_audio(audio_clip)
     
     output_filename = "animacion_final.mp4"
+    # Renderizado optimizado
     video.write_videofile(
         output_filename, fps=fps, codec="libx264", audio_codec="aac",
         preset="ultrafast", ffmpeg_params=['-pix_fmt', 'yuv420p'],
