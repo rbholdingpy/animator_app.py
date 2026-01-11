@@ -16,7 +16,6 @@ APP_NAME = "Animador Jopara AI 🦜"
 
 st.set_page_config(page_title=APP_NAME, page_icon="🎭", layout="centered")
 
-# Estilos CSS
 st.markdown("""
     <style>
     .stApp { background-color: #121212; color: #E0E0E0; }
@@ -40,7 +39,7 @@ if not api_key:
 client = OpenAI(api_key=api_key)
 
 # ==========================================
-# 🧠 LÓGICA DE IA (Whisper + DALL-E)
+# 🧠 LÓGICA DE IA
 # ==========================================
 
 def transcribir_audio(audio_path):
@@ -69,23 +68,24 @@ def imaginar_personaje(texto, pista_usuario=""):
 def generar_sprites(descripcion):
     base_style = "Flat 2D vector character, clean lines, vibrant colors, solid neutral background. High quality."
     
-    # Prompt A: Boca CERRADA
     prompt_closed = f"{base_style} Description: {descripcion}. Pose: Neutral listening. Mouth: CLOSED tightly."
-    # Prompt B: Boca ABIERTA
     prompt_open = f"{base_style} Description: {descripcion}. Pose: Speaking loudly. Mouth: WIDE OPEN shouting."
     
     def fetch_dalle(prompt):
         res = client.images.generate(model="dall-e-3", prompt=prompt, size="1024x1024", quality="standard", n=1)
-        return Image.open(io.BytesIO(requests.get(res.data[0].url).content))
+        image_data = requests.get(res.data[0].url).content
+        img = Image.open(io.BytesIO(image_data))
+        # --- OPTIMIZACIÓN DE MEMORIA ---
+        # Reducimos a 512x512 para que no explote la RAM del servidor
+        return img.resize((512, 512))
 
     return fetch_dalle(prompt_closed), fetch_dalle(prompt_open)
 
 # ==========================================
-# 🎞️ MOTOR DE ANIMACIÓN (MOVIEPY v2.0)
+# 🎞️ MOTOR DE ANIMACIÓN (MEMORIA OPTIMIZADA)
 # ==========================================
 
 def procesar_video(audio_path, img_closed, img_open, fps=8):
-    """Anima analizando el volumen directamente con MoviePy"""
     
     # 1. Guardar imágenes temporales
     img_closed.save("frame_closed.png")
@@ -103,10 +103,7 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     
     for t in times:
         try:
-            # Extraer fragmento y analizar volumen
-            # En v2.0 usamos fps como argumento clave si es necesario
             chunk = audio_clip.subclip(t, t + step).to_soundarray(fps=22050)
-            
             if chunk is not None and len(chunk) > 0:
                 volume = np.max(np.abs(chunk))
             else:
@@ -116,8 +113,7 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
             
         threshold = 0.01 
         
-        # --- CORRECCIÓN CLAVE v2.0 ---
-        # Usamos .with_duration() en lugar de .set_duration()
+        # Usamos .with_duration (sintaxis v2.0)
         if volume > threshold:
             clip = ImageClip("frame_open.png").with_duration(step)
         else:
@@ -126,18 +122,17 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
         clips.append(clip)
         
     # 5. Unir todo
-    video = concatenate_videoclips(clips, method="compose")
-    
-    # --- CORRECCIÓN CLAVE v2.0 ---
-    # Usamos .with_audio() en lugar de .set_audio()
+    # method="chain" es más rápido y gasta menos memoria que "compose" para cortes simples
+    video = concatenate_videoclips(clips, method="chain")
     video = video.with_audio(audio_clip)
     
     output_filename = "animacion_final.mp4"
     
-    # Renderizado
+    # Usamos libx264 con preset ultrafast y threads reducidos para evitar picos de CPU
     video.write_videofile(
         output_filename, fps=fps, codec="libx264", audio_codec="aac",
         preset="ultrafast", ffmpeg_params=['-pix_fmt', 'yuv420p'],
+        threads=2, # Limitamos hilos para estabilidad
         logger=None
     )
     
@@ -186,7 +181,7 @@ if audio_file:
                 with c2: st.image(img_a, caption="Hablando")
                 
                 # 5. Animar
-                status.write("🎞️ Renderizando video...")
+                status.write("🎞️ Renderizando video (Optimizado)...")
                 video_path = procesar_video(temp_audio, img_c, img_a)
                 
                 status.update(label="✅ ¡Éxito!", state="complete", expanded=False)
