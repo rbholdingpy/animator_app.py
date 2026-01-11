@@ -5,8 +5,14 @@ import io
 import requests
 import numpy as np
 from PIL import Image
-# Eliminamos pydub y usamos solo MoviePy
-from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip
+# --- CORRECCIÓN CLAVE PARA MOVIEPY NUEVO ---
+try:
+    # Intentamos importar a la manera antigua
+    from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip
+except ImportError:
+    # Si falla, usamos la manera nueva (MoviePy v2.0+)
+    from moviepy import ImageClip, concatenate_videoclips, AudioFileClip
+# -------------------------------------------
 
 # ==========================================
 # 🎭 CONFIGURACIÓN: ANIMADOR JOPARA AI
@@ -80,7 +86,7 @@ def generar_sprites(descripcion):
     return fetch_dalle(prompt_closed), fetch_dalle(prompt_open)
 
 # ==========================================
-# 🎞️ MOTOR DE ANIMACIÓN (NUEVO - SIN PYDUB)
+# 🎞️ MOTOR DE ANIMACIÓN (COMPATIBLE v2.0)
 # ==========================================
 
 def procesar_video(audio_path, img_closed, img_open, fps=8):
@@ -90,35 +96,30 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     img_closed.save("frame_closed.png")
     img_open.save("frame_open.png")
     
-    # 2. Cargar Audio con MoviePy
+    # 2. Cargar Audio
     audio_clip = AudioFileClip(audio_path)
     duration = audio_clip.duration
     
     clips = []
-    # Usamos un paso más grande para evitar errores de memoria
     step = 1.0 / fps 
     
-    # 3. Iterar por el audio para detectar volumen
-    # Convertimos a array una sola vez para velocidad (si es corto)
-    # O iteramos por trozos
-    
+    # 3. Iterar por el audio
     times = np.arange(0, duration, step)
     
     for t in times:
-        # Extraer un pequeño trozo de audio
-        # Nota: to_soundarray devuelve una matriz [samples, channels]
         try:
+            # MoviePy v2 puede requerir manejo específico de arrays
             chunk = audio_clip.subclip(t, t + step).to_soundarray(fps=22050)
-            if chunk.size > 0:
-                # Calculamos el volumen máximo en este trozo
+            
+            # Verificación de seguridad para array vacío
+            if chunk is not None and len(chunk) > 0:
                 volume = np.max(np.abs(chunk))
             else:
                 volume = 0
-        except:
+        except Exception:
             volume = 0
             
-        # 4. Decisión: ¿Boca abierta o cerrada?
-        # Umbral de sensibilidad (ajustable)
+        # Umbral ajustable
         threshold = 0.01 
         
         if volume > threshold:
@@ -133,7 +134,8 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     video = video.set_audio(audio_clip)
     
     output_filename = "animacion_final.mp4"
-    # Renderizado optimizado
+    
+    # Renderizado seguro
     video.write_videofile(
         output_filename, fps=fps, codec="libx264", audio_codec="aac",
         preset="ultrafast", ffmpeg_params=['-pix_fmt', 'yuv420p'],
