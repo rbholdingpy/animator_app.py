@@ -6,7 +6,7 @@ import requests
 import numpy as np
 from PIL import Image
 
-# Importación para MoviePy v2.0+
+# Importación directa para MoviePy v2.0+
 from moviepy import ImageClip, concatenate_videoclips, AudioFileClip
 
 # ==========================================
@@ -103,7 +103,8 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     
     for t in times:
         try:
-            # Extraemos fragmento y analizamos volumen
+            # Extraer fragmento y analizar volumen
+            # En v2.0 usamos fps como argumento clave si es necesario
             chunk = audio_clip.subclip(t, t + step).to_soundarray(fps=22050)
             
             if chunk is not None and len(chunk) > 0:
@@ -115,8 +116,8 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
             
         threshold = 0.01 
         
-        # --- CAMBIO IMPORTANTE AQUÍ (v2.0) ---
-        # Usamos .with_duration en lugar de .set_duration
+        # --- CORRECCIÓN CLAVE v2.0 ---
+        # Usamos .with_duration() en lugar de .set_duration()
         if volume > threshold:
             clip = ImageClip("frame_open.png").with_duration(step)
         else:
@@ -127,12 +128,13 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     # 5. Unir todo
     video = concatenate_videoclips(clips, method="compose")
     
-    # --- CAMBIO IMPORTANTE AQUÍ (v2.0) ---
-    # Usamos .with_audio en lugar de .set_audio
+    # --- CORRECCIÓN CLAVE v2.0 ---
+    # Usamos .with_audio() en lugar de .set_audio()
     video = video.with_audio(audio_clip)
     
     output_filename = "animacion_final.mp4"
     
+    # Renderizado
     video.write_videofile(
         output_filename, fps=fps, codec="libx264", audio_codec="aac",
         preset="ultrafast", ffmpeg_params=['-pix_fmt', 'yuv420p'],
