@@ -6,9 +6,7 @@ import requests
 import numpy as np
 from PIL import Image
 
-# --- IMPORTACIÓN DIRECTA PARA MOVIEPY V2 ---
-# Al instalar 'moviepy' sin versión, obtienes la v2.0+
-# En esta versión, se importa directo desde 'moviepy', no desde 'editor'
+# Importación para MoviePy v2.0+
 from moviepy import ImageClip, concatenate_videoclips, AudioFileClip
 
 # ==========================================
@@ -83,7 +81,7 @@ def generar_sprites(descripcion):
     return fetch_dalle(prompt_closed), fetch_dalle(prompt_open)
 
 # ==========================================
-# 🎞️ MOTOR DE ANIMACIÓN
+# 🎞️ MOTOR DE ANIMACIÓN (MOVIEPY v2.0)
 # ==========================================
 
 def procesar_video(audio_path, img_closed, img_open, fps=8):
@@ -94,7 +92,6 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     img_open.save("frame_open.png")
     
     # 2. Cargar Audio
-    # Nota: En MoviePy v2, AudioFileClip es robusto
     audio_clip = AudioFileClip(audio_path)
     duration = audio_clip.duration
     
@@ -106,10 +103,9 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     
     for t in times:
         try:
-            # Extraemos un fragmento y analizamos volumen
+            # Extraemos fragmento y analizamos volumen
             chunk = audio_clip.subclip(t, t + step).to_soundarray(fps=22050)
             
-            # Verificación de seguridad
             if chunk is not None and len(chunk) > 0:
                 volume = np.max(np.abs(chunk))
             else:
@@ -117,23 +113,26 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
         except Exception:
             volume = 0
             
-        # Umbral ajustable
         threshold = 0.01 
         
+        # --- CAMBIO IMPORTANTE AQUÍ (v2.0) ---
+        # Usamos .with_duration en lugar de .set_duration
         if volume > threshold:
-            clip = ImageClip("frame_open.png").set_duration(step)
+            clip = ImageClip("frame_open.png").with_duration(step)
         else:
-            clip = ImageClip("frame_closed.png").set_duration(step)
+            clip = ImageClip("frame_closed.png").with_duration(step)
             
         clips.append(clip)
         
     # 5. Unir todo
     video = concatenate_videoclips(clips, method="compose")
-    video = video.set_audio(audio_clip)
+    
+    # --- CAMBIO IMPORTANTE AQUÍ (v2.0) ---
+    # Usamos .with_audio en lugar de .set_audio
+    video = video.with_audio(audio_clip)
     
     output_filename = "animacion_final.mp4"
     
-    # Renderizado optimizado para nube
     video.write_videofile(
         output_filename, fps=fps, codec="libx264", audio_codec="aac",
         preset="ultrafast", ffmpeg_params=['-pix_fmt', 'yuv420p'],
