@@ -5,14 +5,11 @@ import io
 import requests
 import numpy as np
 from PIL import Image
-# --- CORRECCIÓN CLAVE PARA MOVIEPY NUEVO ---
-try:
-    # Intentamos importar a la manera antigua
-    from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip
-except ImportError:
-    # Si falla, usamos la manera nueva (MoviePy v2.0+)
-    from moviepy import ImageClip, concatenate_videoclips, AudioFileClip
-# -------------------------------------------
+
+# --- IMPORTACIÓN DIRECTA PARA MOVIEPY V2 ---
+# Al instalar 'moviepy' sin versión, obtienes la v2.0+
+# En esta versión, se importa directo desde 'moviepy', no desde 'editor'
+from moviepy import ImageClip, concatenate_videoclips, AudioFileClip
 
 # ==========================================
 # 🎭 CONFIGURACIÓN: ANIMADOR JOPARA AI
@@ -86,7 +83,7 @@ def generar_sprites(descripcion):
     return fetch_dalle(prompt_closed), fetch_dalle(prompt_open)
 
 # ==========================================
-# 🎞️ MOTOR DE ANIMACIÓN (COMPATIBLE v2.0)
+# 🎞️ MOTOR DE ANIMACIÓN
 # ==========================================
 
 def procesar_video(audio_path, img_closed, img_open, fps=8):
@@ -97,6 +94,7 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     img_open.save("frame_open.png")
     
     # 2. Cargar Audio
+    # Nota: En MoviePy v2, AudioFileClip es robusto
     audio_clip = AudioFileClip(audio_path)
     duration = audio_clip.duration
     
@@ -108,10 +106,10 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     
     for t in times:
         try:
-            # MoviePy v2 puede requerir manejo específico de arrays
+            # Extraemos un fragmento y analizamos volumen
             chunk = audio_clip.subclip(t, t + step).to_soundarray(fps=22050)
             
-            # Verificación de seguridad para array vacío
+            # Verificación de seguridad
             if chunk is not None and len(chunk) > 0:
                 volume = np.max(np.abs(chunk))
             else:
@@ -135,7 +133,7 @@ def procesar_video(audio_path, img_closed, img_open, fps=8):
     
     output_filename = "animacion_final.mp4"
     
-    # Renderizado seguro
+    # Renderizado optimizado para nube
     video.write_videofile(
         output_filename, fps=fps, codec="libx264", audio_codec="aac",
         preset="ultrafast", ffmpeg_params=['-pix_fmt', 'yuv420p'],
