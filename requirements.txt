@@ -4,3 +4,7 @@ moviepy
 numpy
 requests
 imageio-ffmpeg
+Pillow
+proglog
+decorator
+imageio
